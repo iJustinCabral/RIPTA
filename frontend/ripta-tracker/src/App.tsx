@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { getVehiclePositions } from "./services/api"; 
+import { getVehiclePositions, getRoutePolyline } from "./services/api"; 
 import L from "leaflet";
 
 
@@ -14,6 +14,7 @@ const busIcon = L.icon({
 
 const App: React.FC = () => {
   const [vehiclePositions, setVehiclePositions] = useState<any[]>([]);
+  const [routePolyline, setRoutePolyline] = useState<[number, number][]>([]);
 
   // Fetch vehicle positions from Go backend
   useEffect(() => {
@@ -45,6 +46,16 @@ const App: React.FC = () => {
     return () => clearInterval(interval); // Cleanup interval on component unmount
   }, []);
 
+  // Fetch and show route polyline
+  const handleRouteClick = async (routeId: string) => {
+    try {
+      const polyline = await getRoutePolyline(routeId);
+      setRoutePolyline(polyline);
+    } catch (error) {
+      console.error("Could net fetch route polyline")
+    }
+  }
+
   return (
     <div style={{ height: "100vh", width: "100vw" }}>
       <MapContainer
@@ -73,6 +84,18 @@ const App: React.FC = () => {
                 <div>
                   <h3>Vehicle: {vehicle.label}</h3>
                   <p>Route ID: {vehicle.routeId}</p>
+                  <button
+                  onClick={() => handleRouteClick(vehicle.routeId)} // Fetch and show route
+                  style={{
+                    backgroundColor: "blue",
+                    color: "white",
+                    border: "none",
+                    padding: "5px 10px",
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                  }}>
+                  Show Route
+                </button>
                   <p>Latitude: {vehicle.latitude}</p>
                   <p>Longitude: {vehicle.longitude}</p>
                 </div>
@@ -80,6 +103,16 @@ const App: React.FC = () => {
             </Marker>
           );
         })}
+
+        {/* Route Polyline */}
+        {routePolyline.length > 0 && (
+        <Polyline
+          positions={routePolyline.filter(([lat, lon]) => lat && lon)} // Filter invalid points
+          color="blue"
+          weight={5}
+        />
+        )}
+
       </MapContainer>
     </div>
   );

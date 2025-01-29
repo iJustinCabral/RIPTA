@@ -17,3 +17,15 @@ export const getServiceAlerts = async () => {
   const response = await axios.get(`${API_BASE_URL}/servicealerts`);
   return response.data;
 };
+
+export const getRoutePolyline = async (routeId: string) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/route/${routeId}`);
+    return response.data
+      .filter((point: { lat: number; lon: number }) => point.lat && point.lon)
+      .map((point: { lat: number; lon: number }) => [point.lat, point.lon]);
+  } catch (error) {
+    console.error("Error fetching route polyline:", error);
+    return []
+  }
+};
