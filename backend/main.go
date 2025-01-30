@@ -26,16 +26,33 @@ type ShapePoint struct {
 
 }
 
-// Route_ID -> Shape_ID & Shape_ID -> Lat/Lon Points
+type Schedule struct {
+    StopName string `json:"stop_name"`
+    ArrivalTime string `json:"arrival_time`
+    DepartureTime string `json:"departure_time`
+}
+
+type Route struct {
+    RouteID string `json:"route_id"`
+    RouteName string `json:"route_long_name"`
+}
+
+// Route_ID -> Shape_ID
+// Shape_ID -> Lat/Lon Points
+// StopID -> Code
+// Stop Code -> Name
 var routeToShapeMap = make(map[string]string)
 var shapeToPointsMap = make(map[string][]ShapePoint)
-
+var stopIdToCodeMap = make(map[string]string) // stop_id -> stop_code
+var stopCodeToNameMap = make(map[string]string) // stop_code -> stop_name
+var routesList []Route
 
 // ----------------- Helper Functions to Read Needed Data ------------------------
 func loadTrips(filePath string) error {
     file, err := os.Open(filePath)
+
     if err != nil {
-	    return err
+	return err
     }
     defer file.Close()
 
@@ -69,7 +86,7 @@ func loadShapes(filePath string) error {
     for {
 	record, err := reader.Read()
 	if err != nil {
-		break
+	    break
 	}
 
 	shapeID := record[0]
@@ -79,6 +96,69 @@ func loadShapes(filePath string) error {
 	shapeToPointsMap[shapeID] = append(shapeToPointsMap[shapeID], ShapePoint{Lat: lat, Lon: lon})
     }
     return nil
+}
+
+func loadStops(filePath string) error {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    reader := csv.NewReader(file)
+    reader.Read() // Skip header
+
+    for {
+        record, err := reader.Read()
+        if err != nil {
+            break
+        }
+
+        stopID := strings.TrimSpace(record[0])  // stop_id (numeric)
+        stopCode := strings.TrimSpace(record[1]) // stop_code (alphanumeric)
+        stopName := record[2]                    // stop_name
+
+        stopIdToCodeMap[stopID] = stopCode  // Map stop_id to stop_code
+        stopCodeToNameMap[stopCode] = stopName // Map stop_code to stop_name
+    }
+    return nil
+}
+
+func loadRoutes(filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.Read() // Skip header
+
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			break
+		}
+
+		routeID := record[0]      // route_id
+		routeName := record[2]    // route_long_name
+
+		routesList = append(routesList, Route{
+			RouteID:   routeID,
+			RouteName: routeName,
+		})
+	}
+	return nil
+}
+
+// Check if a value exists in a slice
+func contains(slice []string, item string) bool {
+    for _, s := range slice {
+        if s == item {
+            return true
+        }
+    }
+    return false
 }
 
 // Fetches data from the given URL and writes it to the response
@@ -139,18 +219,80 @@ func RouteHandler(w http.ResponseWriter, r *http.Request) {
     routeID := strings.TrimPrefix(r.URL.Path, "/api/route/")
     shapeID, exists := routeToShapeMap[routeID]
     if !exists {
-	    http.Error(w, "Route not found", http.StatusNotFound)
-	    return
+	http.Error(w, "Route not found", http.StatusNotFound)
+	return
     }
 
     polyline, exists := shapeToPointsMap[shapeID]
     if !exists {
-	    http.Error(w, "Shape not found", http.StatusNotFound)
-	    return
+	 http.Error(w, "Shape not found", http.StatusNotFound)
+	return
     }
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(polyline)
+}
+
+func ScheduleHandler(w http.ResponseWriter, r *http.Request) {
+    routeID := r.URL.Query().Get("routeId")
+    if routeID == "" {
+        http.Error(w, "Missing routeId parameter", http.StatusBadRequest)
+        return
+    }
+
+    file, err := os.Open("RIPTA-GTFS/stop_times.txt")
+    if err != nil {
+        http.Error(w, "Failed to open stop_times file", http.StatusInternalServerError)
+        return
+    }
+    defer file.Close()
+
+    reader := csv.NewReader(file)
+    reader.Read() // Skip header
+
+    var schedule []Schedule
+
+    for {
+        record, err := reader.Read()
+        if err != nil {
+            break
+        }
+
+        arrivalTime := record[1]   // arrival_time
+        departureTime := record[2] // departure_time
+        stopID := strings.TrimSpace(record[3]) // stop_id from stop_times.txt
+
+        // Convert stop_id -> stop_code -> stop_name
+        stopCode, exists := stopIdToCodeMap[stopID]
+        if !exists {
+            stopCode = stopID // Fallback to raw stop_id
+        }
+
+        stopName, exists := stopCodeToNameMap[stopCode]
+        if !exists {
+            stopName = "Unknown Stop" // Final fallback
+        }
+
+        // Add to schedule list
+        schedule = append(schedule, Schedule{
+            StopName:     stopName,
+            ArrivalTime:  arrivalTime,
+            DepartureTime: departureTime,
+        })
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(schedule)
+}
+
+func RoutesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(routesList)
 }
 
 // --------------- Main Server Func ------------------
@@ -164,6 +306,17 @@ func main() {
     if err := loadShapes("RIPTA-GTFS/shapes.txt"); err != nil {
 	panic(err)
     }
+    
+    // Load stop mappings
+    if err := loadStops("RIPTA-GTFS/stops.txt"); err != nil {
+        panic(err)
+    }
+
+    // Load Routes from GTFS
+    if err := loadRoutes("RIPTA-GTFS/routes.txt"); err != nil {
+	panic(err)
+    }
+
 
     // Home root to check on server status
     http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -172,9 +325,11 @@ func main() {
 
     // Define the routes
     http.HandleFunc("/api/route/", RouteHandler)
+    http.HandleFunc("/api/routes/", RoutesHandler)
     http.HandleFunc("/api/tripupdates", TripUpdatesHandler)
     http.HandleFunc("/api/vehiclepositions", VehiclePositionsHandler)
     http.HandleFunc("/api/servicealerts", ServiceAlertsHandler)
+    http.HandleFunc("/api/schedule", ScheduleHandler)
 
     // Start the server
     log.Println("Server running...")
@@ -191,8 +346,8 @@ func enableCORS(next http.Handler) http.Handler {
 
 	// Handle preflight requests
 	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusOK)
-		return
+	    w.WriteHeader(http.StatusOK)
+	    return
 	}
 
 	// Pass to the next handler

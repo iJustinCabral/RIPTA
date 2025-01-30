@@ -57,64 +57,57 @@ const LiveMap: React.FC = () => {
   }
 
   return (
-    <div style={{ height: "100vh", width: "100vw" }}>
-      <MapContainer
-        center={[41.823989, -71.412834]} // Centered on Rhode Island
-        zoom={13}
-        style={{ height: "100%", width: "100%" }}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
+  <div className="h-[calc(100vh-4rem)] w-screen mt-16">
+    <MapContainer
+      center={[41.823989, -71.412834]} // Centered on Rhode Island
+      zoom={13}
+      className="h-full w-full"
+    >
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      />
 
-        {vehiclePositions.map((vehicle, index) => {
-          if (!vehicle.latitude || !vehicle.longitude) {
-            console.error(`Invalid coordinates for vehicle ID ${vehicle.id}`);
-            return null;
-          }
+      {vehiclePositions.map((vehicle, index) => {
+        if (!vehicle.latitude || !vehicle.longitude) {
+          console.error(`Invalid coordinates for vehicle ID ${vehicle.id}`);
+          return null;
+        }
 
-          return (
-            <Marker
-              key={vehicle.id || index}
-              position={[vehicle.latitude, vehicle.longitude]}
-              icon={busIcon}
-            >
-              <Popup>
-                <div>
-                  <h3>Vehicle: {vehicle.label}</h3>
-                  <p>Route ID: {vehicle.routeId}</p>
-                  <button
+        return (
+          <Marker
+            key={vehicle.id || index}
+            position={[vehicle.latitude, vehicle.longitude]}
+            icon={busIcon}
+          >
+            <Popup>
+              <div className="text-center">
+                <h3 className="text-lg font-bold">{vehicle.label}</h3>
+                <p className="text-gray-700">Route ID: {vehicle.routeId}</p>
+                <button
                   onClick={() => handleRouteClick(vehicle.routeId)} // Fetch and show route
-                  style={{
-                    backgroundColor: "blue",
-                    color: "white",
-                    border: "none",
-                    padding: "5px 10px",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                  }}>
+                  className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md cursor-pointer transition duration-200"
+                >
                   Show Route
                 </button>
-                  <p>Latitude: {vehicle.latitude}</p>
-                  <p>Longitude: {vehicle.longitude}</p>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+                <p className="text-gray-500 text-sm">Lat: {vehicle.latitude}</p>
+                <p className="text-gray-500 text-sm">Lon: {vehicle.longitude}</p>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
 
-        {/* Route Polyline */}
-        {routePolyline.length > 0 && (
+      {/* Route Polyline */}
+      {routePolyline.length > 0 && (
         <Polyline
           positions={routePolyline.filter(([lat, lon]) => lat && lon)} // Filter invalid points
           color="blue"
           weight={5}
         />
-        )}
-
-      </MapContainer>
-    </div>
+      )}
+    </MapContainer>
+  </div>
   );
 };
 

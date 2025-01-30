@@ -18,6 +18,11 @@ export const getServiceAlerts = async () => {
   return response.data;
 };
 
+export const getRoutes = async () => {
+  const response = await fetch("http://localhost:8080/api/routes");
+  return response.json();
+};
+
 export const getRoutePolyline = async (routeId: string) => {
   try {
     const response = await axios.get(`${API_BASE_URL}/route/${routeId}`);
@@ -27,5 +32,15 @@ export const getRoutePolyline = async (routeId: string) => {
   } catch (error) {
     console.error("Error fetching route polyline:", error);
     return []
+  }
+};
+
+export const getSchedule = async (routeId: string) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/schedule?routeId=${routeId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching schedule:", error);
+    return [];
   }
 };
