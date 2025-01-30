@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getSchedule, getRoutes } from "../services/api"; // Make sure this correctly calls your backend
+import { getSchedule, getRoutes } from "../services/api"; 
 
 const Schedule: React.FC = () => {
   const [routes, setRoutes] = useState<any[]>([]);
